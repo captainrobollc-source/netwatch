@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Netwatch</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='12' fill='%2322c55e'/></svg>">
+<style>
+:root {
+  --bg: #f6f7f9; --card: #ffffff; --ink: #14171c; --muted: #6b7280; --line: #e5e7eb;
+  --down: #2563eb; --up: #d97706; --ok: #16a34a; --bad: #dc2626; --plan: #9ca3af;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #0e1116; --card: #161a21; --ink: #e8eaee; --muted: #8b93a1; --line: #262c36;
+          --down: #60a5fa; --up: #fbbf24; --ok: #4ade80; --bad: #f87171; --plan: #6b7280; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink);
+  font: 15px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+.wrap { max-width: 980px; margin: 0 auto; padding: 24px 16px 64px; }
+header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+h1 { font-size: 20px; margin: 0; letter-spacing: -0.01em; }
+h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 12px; font-weight: 600; }
+.num { font-variant-numeric: tabular-nums; }
+.status { display: flex; align-items: center; gap: 14px; background: var(--card); border: 1px solid var(--line);
+  border-radius: 14px; padding: 18px 20px; margin-bottom: 16px; }
+.dot { width: 14px; height: 14px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 6px color-mix(in srgb, var(--ok) 18%, transparent); flex: none; }
+.status.down .dot { background: var(--bad); box-shadow: 0 0 0 6px color-mix(in srgb, var(--bad) 18%, transparent); animation: pulse 1.2s infinite; }
+@keyframes pulse { 50% { opacity: .4; } }
+.status b { font-size: 18px; }
+.status small { display: block; color: var(--muted); }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; }
+.metric .label { color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 6px; }
+.metric .value { font-size: 30px; font-weight: 650; letter-spacing: -0.02em; margin-top: 2px; }
+.metric .value span { font-size: 14px; font-weight: 500; color: var(--muted); margin-left: 3px; }
+.metric .sub { color: var(--muted); font-size: 13px; }
+.swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+button { font: inherit; border: 1px solid var(--line); background: var(--card); color: var(--ink);
+  padding: 8px 14px; border-radius: 10px; cursor: pointer; }
+button.primary { background: var(--ink); color: var(--bg); border-color: var(--ink); font-weight: 600; }
+button:disabled { opacity: .55; cursor: wait; }
+.tabs { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.tabs button { border: 0; border-radius: 0; padding: 6px 12px; background: transparent; color: var(--muted); }
+.tabs button.on { background: var(--line); color: var(--ink); font-weight: 600; }
+.chart-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; gap: 8px; flex-wrap: wrap; }
+.legend { display: flex; gap: 14px; color: var(--muted); font-size: 13px; align-items: center; }
+svg { display: block; width: 100%; height: auto; }
+svg text { fill: var(--muted); font-size: 11px; }
+.empty { color: var(--muted); padding: 40px 0; text-align: center; }
+table { width: 100%; border-collapse: collapse; }
+td, th { text-align: left; padding: 9px 4px; border-top: 1px solid var(--line); font-size: 14px; }
+th { color: var(--muted); font-weight: 500; border-top: 0; font-size: 13px; }
+.tag { font-size: 12px; padding: 2px 8px; border-radius: 99px; background: var(--line); color: var(--muted); white-space: nowrap; }
+details summary { cursor: pointer; color: var(--muted); }
+form.settings { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-top: 14px; align-items: end; }
+label { font-size: 13px; color: var(--muted); display: grid; gap: 4px; }
+input, select { font: inherit; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); width: 100%; }
+.note { color: var(--muted); font-size: 13px; margin-top: 10px; }
+#tip { position: fixed; pointer-events: none; background: var(--ink); color: var(--bg); font-size: 12px; padding: 6px 8px; border-radius: 6px; display: none; white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Netwatch</h1>
+    <button class="primary" id="run">Run speed test</button>
+  </header>
+
+  <div class="status" id="status">
+    <div class="dot"></div>
+    <div><b id="statusText">Checking…</b><small id="statusSub"></small></div>
+  </div>
+
+  <div class="grid">
+    <div class="card metric"><div class="label"><i class="swatch" style="background:var(--down)"></i>Download</div>
+      <div class="value num" id="mDown">–</div><div class="sub" id="mDownSub"></div></div>
+    <div class="card metric"><div class="label"><i class="swatch" style="background:var(--up)"></i>Upload</div>
+      <div class="value num" id="mUp">–</div><div class="sub" id="mUpSub"></div></div>
+    <div class="card metric"><div class="label">Ping</div>
+      <div class="value num" id="mPing">–</div><div class="sub" id="mPingSub"></div></div>
+    <div class="card metric"><div class="label">Uptime, 7 days</div>
+      <div class="value num" id="mUptime">–</div><div class="sub" id="mUptimeSub"></div></div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px">
+    <div class="chart-head">
+      <h2 style="margin:0">Speed over time</h2>
+      <div class="legend">
+        <span><i class="swatch" style="background:var(--down)"></i> Download</span>
+        <span><i class="swatch" style="background:var(--up)"></i> Upload</span>
+        <span id="planLegend" hidden>┄ Your plan</span>
+        <div class="tabs" id="range">
+          <button data-d="1">24h</button><button data-d="7" class="on">7d</button><button data-d="30">30d</button>
+        </div>
+      </div>
+    </div>
+    <div id="chart"></div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px">
+    <h2>Outages</h2>
+    <div id="outages"></div>
+  </div>
+
+  <div class="card">
+    <details>
+      <summary>Settings</summary>
+      <form class="settings" id="settings">
+        <label>Plan download (Mbps)<input name="planDown" type="number" min="0" step="1"></label>
+        <label>Plan upload (Mbps)<input name="planUp" type="number" min="0" step="1"></label>
+        <label>Test every
+          <select name="intervalMin">
+            <option value="30">30 minutes</option><option value="60">hour</option>
+            <option value="180">3 hours</option><option value="360">6 hours</option>
+          </select></label>
+        <label>Router address<input name="gateway" type="text"></label>
+        <button class="primary" type="submit">Save</button>
+      </form>
+      <p class="note">Speeds are measured from the phone over Wi-Fi, so they can't go higher than the phone's Wi-Fi can carry.
+        Each test uses up to about 130 MB of data. The router address is used to tell a router or Wi-Fi problem apart from a provider outage.</p>
+    </details>
+  </div>
+</div>
+<div id="tip"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+let range = 7, S = null;
+
+function ago(t) {
+  const s = Math.max(0, Math.round((Date.now() - t) / 1000));
+  return dur(s);
+}
+function dur(s) {
+  const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60);
+  if (d) return `${d}d ${h}h`;
+  if (h) return `${h}h ${m}m`;
+  if (m) return `${m}m ${s % 60}s`;
+  return `${s}s`;
+}
+const when = t => new Date(t).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+const fmt = (v, d = 0) => v == null ? '–' : Number(v).toFixed(d);
+
+async function load() {
+  S = await (await fetch('/api/summary')).json();
+  const st = $('status');
+  st.classList.toggle('down', !S.online);
+  $('statusText').textContent = S.online ? `Online for ${ago(S.since)}` : `Internet down for ${ago(S.since)}`;
+  const nxt = S.testRunning ? 'Speed test running now' : `Next speed test in ${dur(Math.max(0, Math.round((S.nextTestAt - Date.now()) / 1000)))}`;
+  $('statusSub').textContent = S.online ? `${nxt} · monitoring since ${when(S.monitoringSince)}` : 'Waiting for the connection to come back';
+
+  const L = S.last && !S.last.error ? S.last : null;
+  const unit = v => `${v}<span>Mbps</span>`;
+  $('mDown').innerHTML = L ? unit(fmt(L.down)) : '–';
+  $('mUp').innerHTML = L ? unit(fmt(L.up)) : '–';
+  $('mPing').innerHTML = L ? `${fmt(L.pingMs)}<span>ms</span>` : '–';
+  const pct = (v, p) => p && v != null ? ` · ${Math.round(100 * v / p)}% of plan` : '';
+  $('mDownSub').textContent = S.avg.d7.down != null ? `7-day avg ${fmt(S.avg.d7.down)}${pct(S.avg.d7.down, S.settings.planDown)}` : 'No tests yet';
+  $('mUpSub').textContent = S.avg.d7.up != null ? `7-day avg ${fmt(S.avg.d7.up)}${pct(S.avg.d7.up, S.settings.planUp)}` : '';
+  $('mPingSub').textContent = L ? `jitter ${fmt(L.jitterMs, 1)} ms · tested ${ago(L.t)} ago` : '';
+  $('mUptime').innerHTML = S.uptime.d7 != null ? `${S.uptime.d7 >= 99.995 ? '100' : S.uptime.d7.toFixed(2)}<span>%</span>` : '–';
+  $('mUptimeSub').textContent = `${S.outageCount30} outage${S.outageCount30 === 1 ? '' : 's'} in 30 days`;
+  if (S.last && S.last.error) $('mDownSub').textContent = 'Last test failed: ' + S.last.error;
+
+  const f = $('settings');
+  if (document.activeElement?.form !== f) {
+    f.planDown.value = S.settings.planDown || '';
+    f.planUp.value = S.settings.planUp || '';
+    f.intervalMin.value = String(S.settings.intervalMin);
+    f.gateway.value = S.settings.gateway;
+  }
+  $('run').disabled = S.testRunning || !S.online;
+  if (!S.testRunning) $('run').textContent = 'Run speed test';
+}
+
+async function loadChart() {
+  const data = (await (await fetch('/api/speedtests?days=' + range)).json()).filter(d => !d.error);
+  const box = $('chart');
+  if (!data.length) { box.innerHTML = '<div class="empty">The first speed test runs a few seconds after the app starts.</div>'; return; }
+  const W = 900, H = 260, pl = 44, pr = 10, pt = 10, pb = 26;
+  const t1 = Date.now(), t0 = t1 - range * 864e5;
+  const plan = S?.settings.planDown || 0;
+  $('planLegend').hidden = !plan;
+  const maxV = Math.max(plan, ...data.map(d => Math.max(d.down, d.up))) * 1.1 || 10;
+  const x = t => pl + (t - t0) / (t1 - t0) * (W - pl - pr);
+  const y = v => pt + (1 - v / maxV) * (H - pt - pb);
+  const step = niceStep(maxV / 4);
+  let g = '';
+  for (let v = 0; v <= maxV; v += step) g += `<line x1="${pl}" x2="${W - pr}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${pl - 8}" y="${y(v) + 4}" text-anchor="end">${v}</text>`;
+  const ticks = range === 1 ? 6 : range === 7 ? 7 : 6;
+  for (let i = 0; i <= ticks; i++) {
+    const t = t0 + i * (t1 - t0) / ticks;
+    const lbl = range === 1 ? new Date(t).toLocaleTimeString([], { hour: 'numeric' }) : new Date(t).toLocaleDateString([], { month: 'short', day: 'numeric' });
+    const anchor = i === 0 ? 'start' : i === ticks ? 'end' : 'middle';
+    g += `<text x="${x(t)}" y="${H - 6}" text-anchor="${anchor}">${lbl}</text>`;
+  }
+  if (plan) g += `<line x1="${pl}" x2="${W - pr}" y1="${y(plan)}" y2="${y(plan)}" stroke="var(--plan)" stroke-dasharray="4 4"/>`;
+  const line = (key, color) => {
+    const pts = data.map(d => `${x(d.t).toFixed(1)},${y(d[key]).toFixed(1)}`).join(' ');
+    const dots = data.length < 80 ? data.map(d => `<circle cx="${x(d.t)}" cy="${y(d[key])}" r="2.5" fill="${color}"/>`).join('') : '';
+    return `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round"/>${dots}`;
+  };
+  box.innerHTML = `<svg viewBox="0 0 ${W} ${H}" id="svg">${g}${line('up', 'var(--up)')}${line('down', 'var(--down)')}
+    <line id="cursor" y1="${pt}" y2="${H - pb}" stroke="var(--muted)" stroke-width="1" visibility="hidden"/></svg>`;
+  const svg = $('svg'), tip = $('tip'), cur = $('cursor');
+  svg.onmousemove = e => {
+    const r = svg.getBoundingClientRect();
+    const sx = (e.clientX - r.left) / r.width * W;
+    let best = data[0];
+    for (const d of data) if (Math.abs(x(d.t) - sx) < Math.abs(x(best.t) - sx)) best = d;
+    cur.setAttribute('x1', x(best.t)); cur.setAttribute('x2', x(best.t)); cur.setAttribute('visibility', 'visible');
+    tip.style.display = 'block';
+    tip.textContent = `${when(best.t)} · ↓ ${fmt(best.down)} · ↑ ${fmt(best.up)} Mbps · ${fmt(best.pingMs)} ms`;
+    tip.style.left = Math.min(e.clientX + 12, innerWidth - tip.offsetWidth - 8) + 'px';
+    tip.style.top = (e.clientY - 34) + 'px';
+  };
+  svg.onmouseleave = () => { tip.style.display = 'none'; cur.setAttribute('visibility', 'hidden'); };
+}
+function niceStep(raw) {
+  const p = Math.pow(10, Math.floor(Math.log10(raw)));
+  for (const m of [1, 2, 5, 10]) if (m * p >= raw) return m * p;
+  return 10 * p;
+}
+
+async function loadOutages() {
+  const list = await (await fetch('/api/outages')).json();
+  const box = $('outages');
+  if (!list.length) { box.innerHTML = '<div class="empty" style="padding:16px 0">No outages recorded yet.</div>'; return; }
+  const cause = o => o.routerReachable === false ? '<span class="tag">Router or Wi-Fi</span>'
+    : o.routerReachable ? '<span class="tag">Provider</span>' : '';
+  box.innerHTML = `<table><tr><th>Started</th><th>Lasted</th><th>Likely cause</th></tr>${list.map(o =>
+    `<tr><td>${when(o.start)}</td><td class="num">${o.end ? dur(o.durationSec) : '<b style="color:var(--bad)">ongoing</b>'}</td><td>${cause(o)}</td></tr>`).join('')}</table>`;
+}
+
+$('range').onclick = e => {
+  const d = e.target.dataset.d; if (!d) return;
+  range = Number(d);
+  [...$('range').children].forEach(b => b.classList.toggle('on', b === e.target));
+  loadChart();
+};
+$('run').onclick = async () => {
+  const b = $('run'); b.disabled = true; b.textContent = 'Testing… (about 20 s)';
+  const r = await fetch('/api/test', { method: 'POST' });
+  if (!r.ok) alert((await r.json()).error);
+  await refresh();
+};
+$('settings').onsubmit = async e => {
+  e.preventDefault();
+  const f = e.target;
+  await fetch('/api/settings', { method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ planDown: f.planDown.value, planUp: f.planUp.value, intervalMin: f.intervalMin.value, gateway: f.gateway.value }) });
+  f.querySelector('button').textContent = 'Saved';
+  setTimeout(() => f.querySelector('button').textContent = 'Save', 1500);
+  refresh();
+};
+async function refresh() { try { await load(); await Promise.all([loadChart(), loadOutages()]); } catch {} }
+refresh();
+setInterval(refresh, 15000);
+</script>
+</body>
+</html>

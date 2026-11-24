@@ -1,0 +1,6 @@
+{
+  "name": "netwatch",
+  "health": "/healthz",
+  "keep": ["data/"],
+  "maxMemory": "350M"
+}
