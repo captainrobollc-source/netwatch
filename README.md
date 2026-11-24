@@ -16,3 +16,7 @@ PORT=3000 node server.js
 
 Environment (all optional): `GATEWAY` (router address, default `192.168.0.1`), `PROBES`
 (`host:port,...` to test connectivity), `CHECK_EVERY_MS`.
+
+## Deploying
+
+Pushes to `main` deploy to the Pocket phone server automatically (it checks every 2 minutes), with a health check and automatic rollback if the new version fails to start.
